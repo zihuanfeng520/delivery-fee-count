@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>嘉盛和國際物流 運費計算機</title>
+<style>
+:root{
+  --ink:#1c2b24; --paper:#f6f3ea; --line:#c9c0a8;
+  --accent:#2f6d4f; --accent-2:#b3542e; --card:#ffffff;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --ink:#eae6d9; --paper:#161a17; --line:#3a4038; --card:#20241f; }
+}
+:root[data-theme="dark"]{ --ink:#eae6d9; --paper:#161a17; --line:#3a4038; --card:#20241f; }
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"Noto Serif TC","PingFang TC","Microsoft JhengHei",serif;line-height:1.6;}
+.wrap{max-width:680px;margin:0 auto;padding:26px 18px 60px;}
+h1{font-size:1.4rem;font-weight:700;margin:0 0 4px;}
+.sub{opacity:.65;font-size:.82rem;margin:0 0 22px;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:18px;margin-bottom:16px;}
+.card h2{font-size:.92rem;margin:0 0 12px;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:8px;
+  display:flex;justify-content:space-between;align-items:center;}
+label{display:block;font-size:.76rem;opacity:.75;margin-bottom:4px;}
+input[type=number],select{
+  width:100%;padding:7px 9px;font-size:.95rem;border:1px solid var(--line);
+  border-radius:3px;background:var(--paper);color:var(--ink);font-family:inherit;
+}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px;}
+.pkg{border:1px solid var(--line);border-radius:4px;padding:12px;margin-bottom:10px;position:relative;background:var(--paper);}
+.pkg-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;}
+.pkg-title{font-size:.78rem;opacity:.7;margin-bottom:8px;}
+.pkg-remove{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--accent-2);
+  font-size:.78rem;cursor:pointer;}
+.addbtn{
+  width:100%;padding:9px;border:1px dashed var(--accent);background:none;color:var(--accent);
+  border-radius:3px;cursor:pointer;font-size:.85rem;font-family:inherit;
+}
+.methods{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.methods button{
+  padding:10px 6px;border:1px solid var(--line);background:var(--paper);color:var(--ink);
+  border-radius:3px;cursor:pointer;font-size:.82rem;font-family:inherit;text-align:left;line-height:1.3;
+}
+.methods button small{display:block;opacity:.6;font-size:.72rem;margin-top:2px;}
+.methods button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent);}
+.methods button[aria-pressed="true"] small{opacity:.85;}
+.checkline{display:flex;align-items:center;gap:8px;font-size:.85rem;flex-wrap:wrap;}
+.checkline input[type=checkbox]{width:16px;height:16px;}
+.checkline input[type=number]{width:70px;padding:5px 8px;}
+.note{font-size:.74rem;opacity:.6;margin-top:8px;line-height:1.5;}
+.result table{width:100%;border-collapse:collapse;font-size:.85rem;}
+.result td{padding:5px 0;border-bottom:1px solid var(--line);}
+.result td:last-child{text-align:right;font-variant-numeric:tabular-nums;}
+.result tr.sum td{font-weight:700;border-bottom:none;padding-top:10px;}
+.big{font-size:1.9rem;font-weight:700;color:var(--accent);margin:2px 0 10px;}
+.flag{display:inline-block;margin:6px 0;font-size:.74rem;color:var(--accent-2);
+  border:1px solid var(--accent-2);padding:2px 8px;border-radius:3px;}
+.rate-row{display:flex;gap:8px;align-items:flex-end;}
+.rate-row .field{flex:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>嘉盛和國際物流 · 運費計算機</h1>
+  <p class="sub">支援多筆包裹材積計算、空運/海運分類報價、包稅與手續費、人民幣匯率換算</p>
+
+  <div class="card">
+    <h2>1. 運送方式</h2>
+    <div class="methods" id="methodGroup">
+      <button data-m="sea" aria-pressed="true">海運快船<small>9元/kg,未滿11kg加17元 · 4-7工作日</small></button>
+      <button data-m="air_normal" aria-pressed="false">空運普貨<small>1kg 28元,遞減至10kg以上20元/kg · 3-6工作日</small></button>
+      <button data-m="air_special" aria-pressed="false">空運特貨(電池/液體/粉末)<small>1kg 30元,遞減至10kg以上22元/kg · 3-5工作日,週五不發貨</small></button>
+      <button data-m="air_food" aria-pressed="false">空運-食品/茶葉<small>固定 30元/kg · 週五不發貨</small></button>
+      <button data-m="air_med" aria-pressed="false">空運-保健品/藥品<small>固定 50元/kg · 週五不發貨</small></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. 包裹清單(可多筆,各自計算材積)</h2>
+    <div id="pkgList"></div>
+    <button class="addbtn" id="addPkg">+ 新增一筆包裹</button>
+    <div class="note">材積觸發條件:單邊長超過50cm,或任兩邊皆超過20cm。觸發後取「體積重量(長×寬×高/9000)」與實重較大者為該筆計費重量。</div>
+  </div>
+
+  <div class="card">
+    <h2>3. 包稅費用(選填)</h2>
+    <div class="checkline">
+      <input type="checkbox" id="taxOn">
+      <label for="taxOn" style="margin:0;">加收包稅費,每公斤</label>
+      <input type="number" id="taxRate" value="3" step="0.5" min="0">
+      <span>元(人民幣)</span>
+    </div>
+    <div class="note">空運預設每公斤+3元,海運預設每公斤+2元(切換運送方式會自動帶入,亦可手動修改)。</div>
+  </div>
+
+  <div class="card">
+    <h2>4. 匯率(人民幣 → 新台幣)</h2>
+    <div class="rate-row">
+      <div class="field">
+        <label for="rate">1 人民幣 = ? 新台幣</label>
+        <input type="number" id="rate" value="4.35" step="0.01" min="0">
+      </div>
+    </div>
+    <div class="note">上方已預先帶入近期台灣銀行人民幣即期賣出匯率(約4.35)供參考。</div>
+  </div>
+
+  <div class="card">
+    <h2>5. 手續費規則</h2>
+    <div class="note" style="margin-top:0;">運費+包稅合計(人民幣)超過 <b>200元</b> 時,加收支付寶手續費 3% + 國際手續費 1.5%(共4.5%)。未超過200元則不加收。</div>
+  </div>
+
+  <div class="card result">
+    <h2 style="border:none;padding:0;margin-bottom:6px;">結算結果</h2>
+    <div class="big" id="totalTWD">--</div>
+    <div class="note" id="totalRMBLine" style="margin-top:-4px;"></div>
+    <table id="breakdown"></table>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let method = 'sea';
+let pkgId = 0;
+const pkgList = $('pkgList');
+
+const methodMeta = {
+  sea:{label:'海運快船', taxDefault:2},
+  air_normal:{label:'空運普貨', taxDefault:3},
+  air_special:{label:'空運特貨(電池/液體/粉末)', taxDefault:3},
+  air_food:{label:'空運-食品/茶葉', taxDefault:3},
+  air_med:{label:'空運-保健品/藥品', taxDefault:3},
+};
+
+function addPkg(w=1, L='', Wd='', H=''){
+  pkgId++;
+  const id = pkgId;
+  const div = document.createElement('div');
+  div.className = 'pkg';
+  div.dataset.id = id;
+  div.innerHTML = `
+    <button class="pkg-remove" data-remove="${id}">移除</button>
+    <div class="pkg-title">包裹 #${id}</div>
+    <div class="pkg-grid">
+      <div><label>實重(kg)</label><input type="number" min="0" step="0.1" value="${w}" class="p-w"></div>
+      <div><label>長(cm)</label><input type="number" min="0" step="0.1" value="${L}" class="p-l" placeholder="選填"></div>
+      <div><label>寬(cm)</label><input type="number" min="0" step="0.1" value="${Wd}" class="p-wd" placeholder="選填"></div>
+      <div><label>高(cm)</label><input type="number" min="0" step="0.1" value="${H}" class="p-h" placeholder="選填"></div>
+    </div>`;
+  pkgList.appendChild(div);
+  div.querySelectorAll('input').forEach(inp=>inp.addEventListener('input', calc));
+  div.querySelector('[data-remove]').addEventListener('click', ()=>{ div.remove(); calc(); });
+  calc();
+}
+$('addPkg').addEventListener('click', ()=>addPkg());
+addPkg(10);
+
+document.querySelectorAll('#methodGroup button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#methodGroup button').forEach(b=>b.setAttribute('aria-pressed','false'));
+    btn.setAttribute('aria-pressed','true');
+    method = btn.dataset.m;
+    $('taxRate').value = methodMeta[method].taxDefault;
+    calc();
+  });
+});
+['taxRate','rate'].forEach(id=>$(id).addEventListener('input', calc));
+$('taxOn').addEventListener('change', calc);
+
+function volWeight(L,Wd,H){
+  if(!L || !Wd || !H) return {vol:0, triggered:false};
+  const dims=[L,Wd,H];
+  const triggered = dims.some(d=>d>50) || dims.filter(d=>d>20).length>=2;
+  return {vol:(L*Wd*H)/9000, triggered};
+}
+
+function airTierPrice(w){
+  if(w<=0) return 0;
+  if(w<=1) return 28*w;
+  if(w<=5) return 26*w;
+  if(w<=10) return 22*w;
+  return 20*w;
+}
+function airSpecialPrice(w){
+  if(w<=0) return 0;
+  if(w<=1) return 30*w;
+  if(w<=5) return 28*w;
+  if(w<=10) return 25*w;
+  return 22*w;
+}
+function seaPrice(w){
+  if(w<2) return null;
+  if(w<11) return 9*w+17;
+  return 9*w;
+}
+
+function calc(){
+  const pkgs = [...pkgList.querySelectorAll('.pkg')].map(div=>{
+    const w = parseFloat(div.querySelector('.p-w').value)||0;
+    const L = parseFloat(div.querySelector('.p-l').value)||0;
+    const Wd = parseFloat(div.querySelector('.p-wd').value)||0;
+    const H = parseFloat(div.querySelector('.p-h').value)||0;
+    const {vol,triggered} = volWeight(L,Wd,H);
+    const billW = triggered ? Math.max(w,vol) : w;
+    return {w,L,Wd,H,vol,triggered,billW};
+  });
+
+  const totalBillW = pkgs.reduce((s,p)=>s+p.billW,0);
+  const anyVol = pkgs.some(p=>p.triggered);
+
+  let freight = 0;
+  let rows = '';
+  let shortErr = '';
+
+  if(method==='sea'){
+    const sp = seaPrice(totalBillW);
+    if(sp===null){ shortErr = '海運最低2公斤起發貨,目前計費重量未達門檻。'; }
+    else freight = sp;
+  } else if(method==='air_normal'){
+    freight = airTierPrice(totalBillW);
+  } else if(method==='air_special'){
+    freight = airSpecialPrice(totalBillW);
+  } else if(method==='air_food'){
+    freight = 30*totalBillW;
+  } else if(method==='air_med'){
+    freight = 50*totalBillW;
+  }
+
+  if(shortErr){
+    $('totalTWD').textContent = shortErr;
+    $('totalRMBLine').textContent = '';
+    $('breakdown').innerHTML = '';
+    return;
+  }
+
+  const taxOn = $('taxOn').checked;
+  const taxRate = parseFloat($('taxRate').value)||0;
+  const taxFee = taxOn ? totalBillW*taxRate : 0;
+
+  const subtotalRMB = freight + taxFee;
+  const feeApplies = subtotalRMB > 200;
+  const alipayFee = feeApplies ? subtotalRMB*0.03 : 0;
+  const intlFee = feeApplies ? subtotalRMB*0.015 : 0;
+  const totalRMB = subtotalRMB + alipayFee + intlFee;
+
+  const rate = parseFloat($('rate').value)||0;
+  const totalTWD = totalRMB * rate;
+
+  $('totalTWD').textContent = `NT$ ${totalTWD.toFixed(0)} 元`;
+  $('totalRMBLine').textContent = `折合人民幣 ¥${totalRMB.toFixed(2)}元(匯率 1RMB=${rate}TWD)`;
+
+  rows += `<tr><td>包裹數 / 合計計費重量</td><td>${pkgs.length}件 · ${totalBillW.toFixed(2)}kg</td></tr>`;
+  rows += `<tr><td>${methodMeta[method].label}運費</td><td>¥${freight.toFixed(2)}</td></tr>`;
+  if(taxOn) rows += `<tr><td>包稅費(每kg ¥${taxRate})</td><td>¥${taxFee.toFixed(2)}</td></tr>`;
+  rows += `<tr><td>小計(運費+包稅)</td><td>¥${subtotalRMB.toFixed(2)}</td></tr>`;
+  if(feeApplies){
+    rows += `<tr><td>支付寶手續費 3%</td><td>¥${alipayFee.toFixed(2)}</td></tr>`;
+    rows += `<tr><td>國際手續費 1.5%</td><td>¥${intlFee.toFixed(2)}</td></tr>`;
+  } else {
+    rows += `<tr><td colspan="2" style="opacity:.6;font-size:.78rem;">小計未超過¥200,免收手續費</td></tr>`;
+  }
+  rows += `<tr class="sum"><td>總計(人民幣)</td><td>¥${totalRMB.toFixed(2)}</td></tr>`;
+  rows += `<tr class="sum"><td>總計(新台幣)</td><td>NT$ ${totalTWD.toFixed(0)}</td></tr>`;
+  $('breakdown').innerHTML = rows;
+
+  if(!document.getElementById('volFlagLine')){
+    const d=document.createElement('div');
+    d.id='volFlagLine'; d.className='flag'; d.style.display='none';
+    $('breakdown').insertAdjacentElement('beforebegin', d);
+  }
+  const flagEl = document.getElementById('volFlagLine');
+  if(anyVol){
+    let flagHtml = '';
+    pkgs.forEach((p,i)=>{
+      if(p.triggered) flagHtml += `包裹#${i+1} 材積觸發 · 體積重${p.vol.toFixed(2)}kg → 計費${p.billW.toFixed(2)}kg　`;
+    });
+    flagEl.textContent = flagHtml;
+    flagEl.style.display='inline-block';
+  } else {
+    flagEl.style.display='none';
+  }
+}
+calc();
+</script>
+</body>
+</html>
